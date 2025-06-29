@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hình Ảnh Lưới Cầu</title>
+    <style>
+        body { background: #222; margin: 0; overflow: hidden; }
+        #sphere-container {
+            width: 100vw; height: 100vh; perspective: 1200px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        #sphere {
+            position: relative;
+            width: 500px; height: 500px;
+            transform-style: preserve-3d;
+            transition: transform 0.3s;
+        }
+        .sphere-img {
+            position: absolute;
+            width: 80px; height: 80px;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px #0008;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s, z-index 0.3s;
+            z-index: 1;
+            background: #fff;
+            border: 2px solid #fff;
+        }
+        .sphere-img.enlarged {
+            transform: scale(2) !important;
+            z-index: 10 !important;
+            box-shadow: 0 8px 32px #000c;
+            border: 3px solid #fff;
+        }
+        .grid-line {
+            position: absolute;
+            left: 0; top: 0;
+            width: 500px; height: 500px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 1;
+        }
+        ::-webkit-scrollbar { display: none; }
+        .sphere-controls {
+            position: absolute;
+            left: 50%;
+            bottom: 40px;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+        .sphere-btn {
+            background: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 2rem;
+            color: #222;
+            box-shadow: 0 2px 8px #0006;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .sphere-btn:active {
+            background: #eee;
+            box-shadow: 0 1px 4px #0004;
+        }
+        .sphere-controls .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        /* Modal */
+        #enlarged-modal {
+            display:none;position:fixed;z-index:9999;top:0;left:0;width:100vw;height:100vh;
+            align-items:center;justify-content:center;background:rgba(0,0,0,0.45);
+        }
+        #enlarged-img {
+            max-width:75vw;max-height:75vh;
+            box-shadow:0 8px 32px #000c;
+            border-radius:18px;
+            background:#fff;
+            border:4px solid #fff;
+            object-fit:cover;
+            position: relative;
+            z-index: 10001;
+        }
+    </style>
+</head>
+<body>
+<div id="sphere-container">
+    <div id="sphere"></div>
+    <div class="sphere-controls">
+        <button class="sphere-btn" id="btn-zoom-out">-</button>
+        <button class="sphere-btn" id="btn-zoom-in">+</button>
+        <button class="sphere-btn" id="btn-left">&#8592;</button>
+        <button class="sphere-btn" id="btn-right">&#8594;</button>
+        <button class="sphere-btn" id="btn-up">&#8593;</button>
+        <button class="sphere-btn" id="btn-down">&#8595;</button>
+    </div>
+    <div style="position:absolute;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.15);pointer-events:none;z-index:100;"></div>
+</div>
+<div id="enlarged-modal">
+    <img id="enlarged-img"/>
+</div>
+<script>
+// 40 hình ảnh mẫu
+const images = [
+    'https://picsum.photos/id/1001/200/200','https://picsum.photos/id/1002/200/200','https://picsum.photos/id/1003/200/200','https://picsum.photos/id/1004/200/200','https://picsum.photos/id/1005/200/200',
+    'https://picsum.photos/id/1006/200/200','https://picsum.photos/id/1008/200/200','https://picsum.photos/id/1009/200/200','https://picsum.photos/id/1010/200/200','https://picsum.photos/id/1011/200/200',
+    'https://picsum.photos/id/1012/200/200','https://picsum.photos/id/1013/200/200','https://picsum.photos/id/1014/200/200','https://picsum.photos/id/1015/200/200','https://picsum.photos/id/1016/200/200',
+    'https://picsum.photos/id/1018/200/200','https://picsum.photos/id/1020/200/200','https://picsum.photos/id/1024/200/200','https://picsum.photos/id/1025/200/200','https://picsum.photos/id/1027/200/200',
+    'https://picsum.photos/id/1035/200/200','https://picsum.photos/id/1039/200/200','https://picsum.photos/id/1040/200/200','https://picsum.photos/id/1041/200/200','https://picsum.photos/id/1042/200/200',
+    'https://picsum.photos/id/1043/200/200','https://picsum.photos/id/1044/200/200','https://picsum.photos/id/1045/200/200','https://picsum.photos/id/1047/200/200','https://picsum.photos/id/1048/200/200',
+    'https://picsum.photos/id/1049/200/200','https://picsum.photos/id/1050/200/200','https://picsum.photos/id/1051/200/200','https://picsum.photos/id/1052/200/200','https://picsum.photos/id/1053/200/200',
+    'https://picsum.photos/id/1054/200/200','https://picsum.photos/id/1055/200/200','https://picsum.photos/id/1056/200/200','https://picsum.photos/id/1057/200/200','https://picsum.photos/id/1058/200/200'
+];
+
+// 8 cột, 5 hàng
+const cols = 8;
+const rows = 5;
+const imgCount = images.length;
+
+const sphere = document.getElementById('sphere');
+
+// Phân bố đều các ảnh trên mặt cầu (lưới cầu đều)
+const imgPositions = [];
+let idx = 0;
+for (let row = 0; row < rows; row++) {
+    // Không đặt ảnh ở cực trên/dưới, chia đều theo vĩ độ
+    const phi = Math.PI * (row + 1) / (rows + 1); // vĩ độ
+    for (let col = 0; col < cols; col++) {
+        if (idx >= imgCount) break;
+        const theta = 2 * Math.PI * col / cols; // kinh độ
+        imgPositions.push({phi, theta});
+        idx++;
+    }
+}
+
+// Tạo các ảnh
+images.forEach((src, i) => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.className = 'sphere-img';
+    img.dataset.index = i;
+    img.style.background = "rgba(255,255,255,0.6)";
+    sphere.appendChild(img);
+});
+
+// Tạo lưới cầu (vĩ tuyến và kinh tuyến)
+const gridCanvas = document.createElement('canvas');
+gridCanvas.width = 500;
+gridCanvas.height = 500;
+gridCanvas.className = 'grid-line';
+sphere.appendChild(gridCanvas);
+
+function drawGrid(rotationY, rotationX, scale) {
+    const ctx = gridCanvas.getContext('2d');
+    ctx.clearRect(0, 0, 500, 500);
+    ctx.save();
+    ctx.translate(250, 250);
+
+    const r = 200 * scale;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 3;
+
+    // Vẽ các vĩ tuyến (latitude)
+    for (let i = 1; i <= rows; i++) {
+        const phi = Math.PI * i / (rows + 1);
+        ctx.beginPath();
+        for (let t = 0; t <= 64; t++) {
+            const theta = 2 * Math.PI * t / 64;
+            let x = r * Math.sin(phi) * Math.cos(theta);
+            let y = r * Math.cos(phi);
+            let z = r * Math.sin(phi) * Math.sin(theta);
+
+            // Xoay quanh X và Y
+            let radY = rotationY * Math.PI / 180;
+            let radX = rotationX * Math.PI / 180;
+            // Xoay quanh trục X
+            let y1 = y * Math.cos(radX) - z * Math.sin(radX);
+            let z1 = y * Math.sin(radX) + z * Math.cos(radX);
+            // Xoay quanh trục Y
+            let x2 = x * Math.cos(radY) - z1 * Math.sin(radY);
+            let z2 = x * Math.sin(radY) + z1 * Math.cos(radY);
+
+            // Chỉ vẽ mặt trước
+            if (z2 >= 0) {
+                if (t === 0) ctx.moveTo(x2, y1);
+                else ctx.lineTo(x2, y1);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // Vẽ các kinh tuyến (longitude)
+    for (let j = 0; j < cols; j++) {
+        const theta = 2 * Math.PI * j / cols;
+        ctx.beginPath();
+        for (let t = 0; t <= 64; t++) {
+            const phi = Math.PI * t / 64;
+            let x = r * Math.sin(phi) * Math.cos(theta);
+            let y = r * Math.cos(phi);
+            let z = r * Math.sin(phi) * Math.sin(theta);
+
+            // Xoay quanh X và Y
+            let radY = rotationY * Math.PI / 180;
+            let radX = rotationX * Math.PI / 180;
+            // Xoay quanh trục X
+            let y1 = y * Math.cos(radX) - z * Math.sin(radX);
+            let z1 = y * Math.sin(radX) + z * Math.cos(radX);
+            // Xoay quanh trục Y
+            let x2 = x * Math.cos(radY) - z1 * Math.sin(radY);
+            let z2 = x * Math.sin(radY) + z1 * Math.cos(radY);
+
+            // Chỉ vẽ mặt trước
+            if (z2 >= 0) {
+                if (t === 0) ctx.moveTo(x2, y1);
+                else ctx.lineTo(x2, y1);
+            }
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+let rotationY = 0;
+let rotationX = 0;
+let enlargedIndex = null;
+let sphereScale = 1;
+
+function renderSphere() {
+    const imgs = document.querySelectorAll('.sphere-img');
+    imgs.forEach((img, i) => {
+        if (!imgPositions[i]) return;
+        const {phi, theta} = imgPositions[i];
+        const r = 200 * sphereScale;
+        // Tính vị trí gốc
+        let x0 = r * Math.sin(phi) * Math.cos(theta);
+        let y0 = r * Math.cos(phi);
+        let z0 = r * Math.sin(phi) * Math.sin(theta);
+
+        // Xoay quanh X
+        let radX = rotationX * Math.PI / 180;
+        let y1 = y0 * Math.cos(radX) - z0 * Math.sin(radX);
+        let z1 = y0 * Math.sin(radX) + z0 * Math.cos(radX);
+        // Xoay quanh Y
+        let radY = rotationY * Math.PI / 180;
+        let x2 = x0 * Math.cos(radY) - z1 * Math.sin(radY);
+        let z2 = x0 * Math.sin(radY) + z1 * Math.cos(radY);
+
+        // Ẩn ảnh ở mặt sau quả cầu
+        if (z2 < 0) {
+            img.style.visibility = 'hidden';
+            img.style.pointerEvents = 'none';
+        } else {
+            img.style.visibility = 'visible';
+            img.style.pointerEvents = 'auto';
+        }
+
+        // Giữ ảnh luôn hướng về phía người nhìn (luôn đối diện camera)
+        let dx = x2, dy = y1, dz = z2;
+        let faceY = Math.atan2(dx, dz) * 180 / Math.PI;
+        let faceX = -Math.atan2(dy, Math.sqrt(dx*dx + dz*dz)) * 180 / Math.PI;
+
+        img.style.transform = `
+            translate3d(${x2 + 210}px, ${y1 + 210}px, ${z2}px)
+            rotateY(${faceY}deg)
+            rotateX(${faceX}deg)
+        `;
+        img.style.zIndex = Math.round(z2);
+    });
+    // scale sphere
+    sphere.style.transform = `scale(${sphereScale})`;
+    drawGrid(rotationY, rotationX, sphereScale);
+}
+
+renderSphere();
+
+// Xử lý nút bấm
+document.getElementById('btn-left').onclick = () => {
+    rotationY -= 30;
+    renderSphere();
+};
+document.getElementById('btn-right').onclick = () => {
+    rotationY += 30;
+    renderSphere();
+};
+document.getElementById('btn-up').onclick = () => {
+    rotationX = Math.max(rotationX - 30, -90);
+    renderSphere();
+};
+document.getElementById('btn-down').onclick = () => {
+    rotationX = Math.min(rotationX + 30, 90);
+    renderSphere();
+};
+document.getElementById('btn-zoom-in').onclick = () => {
+    sphereScale = Math.min(sphereScale + 0.2, 2.5);
+    renderSphere();
+};
+document.getElementById('btn-zoom-out').onclick = () => {
+    sphereScale = Math.max(sphereScale - 0.2, 0.5);
+    renderSphere();
+};
+
+// Modal phóng to ảnh (3/4 màn hình, nổi lên trên mặt cầu)
+const modal = document.getElementById('enlarged-modal');
+const modalImg = document.getElementById('enlarged-img');
+modalImg.style.maxWidth = '75vw';
+modalImg.style.maxHeight = '75vh';
+modal.style.alignItems = 'center';
+modal.style.justifyContent = 'center';
+
+sphere.addEventListener('click', e => {
+    if (!e.target.classList.contains('sphere-img')) return;
+    const idx = +e.target.dataset.index;
+    enlargedIndex = idx;
+    modalImg.src = images[idx];
+    modal.style.display = 'flex';
+});
+modal.addEventListener('click', e => {
+    if (e.target === modal) {
+        modal.style.display = 'none';
+        enlargedIndex = null;
+    }
+});
+
+// Đóng modal khi nhấn ESC
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        modal.style.display = 'none';
+        enlargedIndex = null;
+    }
+});
+</script>
+</body>
+</html>
